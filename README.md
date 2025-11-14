@@ -634,7 +634,7 @@ Built with love for:
 
 If SchemaForge saved you time, consider giving it a star! ⭐
 
-[![Star History Chart](https://api.star-history.com/svg?repos=Syntax-Error-1337/schemaforge&type=Date)](https://star-history.com/#Syntax-Error-1337/schemaforge&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=Syntax-Error-1337/schemaforge&type=date&legend=top-left)](https://www.star-history.com/#Syntax-Error-1337/schemaforge&type=date&legend=top-left)
 
 ---
 

@@ -630,6 +630,7 @@ We welcome contributions! Here are some ideas:
 - [ ] Docker support
 - [ ] Schema diff tool
 - [ ] Add DuckDB conversion
+- [ ] Add ML task feature
 
 ### How to Contribute
 1. Fork the repository

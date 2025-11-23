@@ -23,7 +23,7 @@ def run_conversion_benchmark(data_dir: Path, result_dir: Path, formats: Optional
         Dict containing benchmark results.
     """
     if formats is None:
-        formats = ['parquet', 'csv', 'avro', 'orc']
+        formats = ['parquet', 'csv', 'avro', 'orc', 'feather']
     
     logger.info(f"Starting conversion benchmark for formats: {formats}...")
     logger.info("Inferring schemas once for all conversions...")

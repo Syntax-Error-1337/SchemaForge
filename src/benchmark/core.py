@@ -58,7 +58,7 @@ class BenchmarkSuite:
         Run comprehensive conversion benchmarks for all formats.
         
         Args:
-            formats: List of formats to benchmark (default: ['parquet', 'csv', 'avro', 'orc'])
+            formats: List of formats to benchmark (default: ['parquet', 'csv', 'avro', 'orc', 'feather'])
         
         Returns:
             Dict containing benchmark results.

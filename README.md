@@ -58,6 +58,9 @@ Errors: Many → Zero
 - **Nullable Field Detection**: Identifies which fields can be null
 - **Mixed Type Recognition**: Detects and reports inconsistent types across records
 - **Embedded JSON Parsing**: Automatically detects and parses JSON strings embedded in fields
+- **Streaming Support**: Efficiently processes large files using streaming parsing
+- **Parallel Processing**: Utilizes multiple cores for faster schema inference and conversion
+- **Universal JSON Support**: Handles standard JSON, NDJSON, JSON5, and complex nested structures automatically.
 
 ### 📁 Multi-Format JSON Support
 Handles 11+ JSON formats automatically:
@@ -71,7 +74,8 @@ Handles 11+ JSON formats automatically:
 - ✅ **Embedded JSON Strings**: JSON stored as string values (auto-parsed)
 - ✅ **Numeric Strings**: String values that represent numbers (auto-detected)
 - ✅ **Mixed Format Files**: Handles files with inconsistent structures
-- ✅ **JSON with Comments**: Basic support for comment-like structures
+- ✅ **JSON with Comments**: Supports JSON5 format (comments, trailing commas)
+- ✅ **Streaming JSON**: Efficiently handles large files without loading into memory
 
 ### 🔄 Schema-First Workflow
 1. **Scan once** → Generate comprehensive schema reports
@@ -112,6 +116,8 @@ pip install -r requirements.txt
 pandas>=2.0.0      # Data manipulation
 pyarrow>=12.0.0    # Parquet support
 pytest>=7.0.0      # Testing framework
+ijson>=3.2.0       # Streaming JSON parser
+json5>=0.9.0       # JSON5 support
 ```
 
 ---
@@ -608,7 +614,7 @@ pytest tests/ --cov=src --cov-report=html
 
 | Limitation | Description | Workaround |
 |------------|-------------|------------|
-| **Memory Usage** | Large files loaded into memory | Use `--max-sample-size` for schema inference |
+| **Memory Usage** | Optimized with streaming, but very complex nested structures may still require memory | Use `--max-sample-size` or ensure system has adequate RAM |
 | **Array of Objects** | Stored as JSON strings in output | Design choice for flat file compatibility |
 | **Type Coercion** | Best-effort conversion | Manual validation recommended |
 | **Timestamp Detection** | Pattern-based recognition | May miss custom formats |
@@ -623,7 +629,7 @@ We welcome contributions! Here are some ideas:
 ### Features to Add
 - [ ] Avro and ORC output formats
 - [ ] Schema validation against inferred schemas
-- [ ] Streaming processing for very large files
+- [x] Streaming processing for very large files
 - [ ] Schema versioning and migration tools
 - [ ] Database export capabilities (PostgreSQL, MySQL)
 - [ ] GUI/Web interface

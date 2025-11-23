@@ -166,6 +166,15 @@ def test_convert_all_parquet(temp_data_dir, temp_output_dir):
         output_dir=str(temp_output_dir)
     )
     
+    # Generate schema report first
+    reader = SchemaReader(data_dir=str(temp_data_dir))
+    reader.scan_directory()
+    report_path = temp_output_dir / "schemas.md"
+    reader.generate_report(str(report_path))
+    json_report_path = report_path.with_suffix('.json')
+    
+    converter.schema_report_path = str(json_report_path)
+    
     results = converter.convert_all("parquet")
     
     assert len(results) == 1
@@ -182,6 +191,15 @@ def test_convert_all_csv(temp_data_dir, temp_output_dir):
         data_dir=str(temp_data_dir),
         output_dir=str(temp_output_dir)
     )
+    
+    # Generate schema report first
+    reader = SchemaReader(data_dir=str(temp_data_dir))
+    reader.scan_directory()
+    report_path = temp_output_dir / "schemas.md"
+    reader.generate_report(str(report_path))
+    json_report_path = report_path.with_suffix('.json')
+    
+    converter.schema_report_path = str(json_report_path)
     
     results = converter.convert_all("csv")
     

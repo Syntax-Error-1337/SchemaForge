@@ -233,6 +233,6 @@ def test_sampling_strategy(temp_data_dir):
     schema = reader.infer_schema(temp_data_dir / "test_array.json")
     
     assert schema is not None
-    # Should still report all records, but only analyze 2
-    assert schema.record_count == 3
+    # With streaming optimization, we only read up to max_sample_size
+    assert schema.record_count == 2
 

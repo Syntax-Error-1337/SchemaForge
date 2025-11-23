@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union, Set
 from collections import defaultdict
 from datetime import datetime
+import concurrent.futures
+from src.json_loader import load_json_file
 
 logger = logging.getLogger(__name__)
 
@@ -438,223 +440,89 @@ class SchemaReader:
         
         return record
     
-    def _load_json_file(self, filepath: Path) -> List[Dict[str, Any]]:
-        """Load JSON data from a file, handling multiple formats:
-        
-        - Standard JSON array of objects
-        - NDJSON (newline-delimited JSON)
-        - Wrapper objects with data arrays (data, results, items, records, rows, entries)
-        - Array-based tabular data (arrays of arrays) with column metadata
-        - GeoJSON format
-        - Single JSON object (treated as single record)
-        - Python literal format (dict/list literals with single quotes)
-        """
-        records = []
-        
-        try:
-            with open(filepath, 'r', encoding='utf-8') as f:
-                content = f.read().strip()
-                
-                if not content:
-                    logger.warning(f"File {filepath.name} is empty")
-                    return records
-                
-                # Try to parse as JSON first
-                try:
-                    data = json.loads(content)
-                    
-                    # Handle different top-level structures
-                    if isinstance(data, list):
-                        # Check if it's an array of arrays (tabular format)
-                        if len(data) > 0 and isinstance(data[0], list):
-                            logger.info(f"Detected array-based tabular format in {filepath.name}")
-                            # Try to find column metadata by looking for a wrapper structure
-                            # This format usually comes from APIs, so we'll create generic column names
-                            if len(data) > 0:
-                                max_cols = max(len(row) for row in data if isinstance(row, list))
-                                columns = [{'name': f'column_{i}', 'position': i} for i in range(max_cols)]
-                                records = [self._convert_array_row_to_object(row, columns) for row in data]
-                            return records
-                        else:
-                            # Regular array of objects
-                            records = data
-                    
-                    elif isinstance(data, dict):
-                        # Check for array-based tabular data with metadata
-                        data_fields = ['data', 'results', 'items', 'records', 'rows', 'entries']
-                        extracted_data = None
-                        data_field_name = None
-                        
-                        for field_name in data_fields:
-                            if field_name in data and isinstance(data[field_name], list):
-                                extracted_data = data[field_name]
-                                data_field_name = field_name
-                                break
-                        
-                        if extracted_data is not None:
-                            # Check if it's array-based tabular format
-                            if len(extracted_data) > 0 and isinstance(extracted_data[0], list):
-                                logger.info(f"Detected array-based tabular format in '{data_field_name}' field")
-                                # Try to extract column definitions from metadata
-                                columns = self._extract_columns_from_metadata(data)
-                                
-                                if columns:
-                                    # Use all columns but the conversion function will skip hidden ones
-                                    # Position in column definitions matches array index
-                                    records = [
-                                        self._convert_array_row_to_object(row, columns) 
-                                        for row in extracted_data
-                                    ]
-                                else:
-                                    # No column metadata found, create generic column names
-                                    if len(extracted_data) > 0:
-                                        max_cols = max(len(row) for row in extracted_data if isinstance(row, list))
-                                        columns = [{'name': f'column_{i}', 'position': i} for i in range(max_cols)]
-                                        records = [
-                                            self._convert_array_row_to_object(row, columns) 
-                                            for row in extracted_data
-                                        ]
-                            else:
-                                # Regular array of objects
-                                records = extracted_data
-                                logger.info(f"Found {len(records)} records in '{data_field_name}' field")
-                        else:
-                            # Check for GeoJSON format
-                            if data.get('type') == 'FeatureCollection' and 'features' in data:
-                                logger.info("Detected GeoJSON FeatureCollection format")
-                                records = [feature.get('properties', {}) for feature in data.get('features', [])]
-                            elif data.get('type') == 'Feature':
-                                logger.info("Detected GeoJSON Feature format")
-                                records = [data.get('properties', {})]
-                            else:
-                                # Treat the dict itself as a single record
-                                records = [data]
-                    else:
-                        logger.warning(f"Unexpected JSON structure in {filepath.name}: {type(data)}")
-                        return records
-                
-                except json.JSONDecodeError:
-                    # Try Python literal format for entire file
-                    try:
-                        logger.info(f"Trying Python literal format for {filepath.name}")
-                        data = ast.literal_eval(content)
-                        
-                        if isinstance(data, list):
-                            # List of records
-                            if len(data) > 0 and isinstance(data[0], dict):
-                                records = data
-                            elif len(data) > 0 and isinstance(data[0], list):
-                                # Array of arrays
-                                max_cols = max(len(row) for row in data if isinstance(row, list))
-                                columns = [{'name': f'column_{i}', 'position': i} for i in range(max_cols)]
-                                records = [self._convert_array_row_to_object(row, columns) for row in data]
-                        elif isinstance(data, dict):
-                            # Single dict or wrapper
-                            data_fields = ['data', 'results', 'items', 'records', 'rows', 'entries']
-                            extracted_data = None
-                            
-                            for field_name in data_fields:
-                                if field_name in data and isinstance(data[field_name], list):
-                                    extracted_data = data[field_name]
-                                    break
-                            
-                            if extracted_data is not None:
-                                records = extracted_data
-                            else:
-                                records = [data]
-                        else:
-                            logger.warning(f"Unexpected Python literal structure in {filepath.name}: {type(data)}")
-                            return records
-                    except (ValueError, SyntaxError):
-                        # Try NDJSON format (one JSON object per line)
-                        logger.info(f"Trying NDJSON format for {filepath.name}")
-                        f.seek(0)
-                        for line_num, line in enumerate(f, 1):
-                            line = line.strip()
-                            if not line:
-                                continue
-                            try:
-                                record = json.loads(line)
-                                if isinstance(record, dict):
-                                    # Check if this line is a wrapper with data array
-                                    data_fields = ['data', 'results', 'items', 'records', 'rows', 'entries']
-                                    extracted_records = None
-                                    
-                                    for field_name in data_fields:
-                                        if field_name in record and isinstance(record[field_name], list):
-                                            extracted_records = record[field_name]
-                                            break
-                                    
-                                    if extracted_records is not None:
-                                        records.extend(extracted_records)
-                                    else:
-                                        records.append(record)
-                                elif isinstance(record, list):
-                                    # Array in NDJSON line
-                                    records.extend(record)
-                            except json.JSONDecodeError:
-                                # Try Python literal format (e.g., {'key': 'value'})
-                                try:
-                                    record = ast.literal_eval(line)
-                                    if isinstance(record, dict):
-                                        records.append(record)
-                                    elif isinstance(record, list):
-                                        records.extend(record)
-                                except (ValueError, SyntaxError) as e:
-                                    logger.warning(f"Failed to parse line {line_num} in {filepath.name}: {e}")
-                                    continue
-        
-        except Exception as e:
-            logger.error(f"Error reading file {filepath.name}: {e}")
-            raise
-        
-        # Ensure all records are dictionaries
-        valid_records = []
-        for record in records:
-            if isinstance(record, dict):
-                valid_records.append(record)
-            elif isinstance(record, list):
-                # Convert array to object with indexed keys
-                valid_records.append({f'field_{i}': val for i, val in enumerate(record)})
-        
-        logger.info(f"Loaded {len(valid_records)} records from {filepath.name}")
-        return valid_records
+    # _load_json_file removed in favor of src.json_loader.load_json_file
     
-    def _sample_records(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _sample_records(self, records: List[Dict[str, Any]], sample_size: Optional[int] = None) -> List[Dict[str, Any]]:
         """Sample records based on the sampling strategy."""
-        if self.max_sample_size is None or len(records) <= self.max_sample_size:
+        size = sample_size if sample_size is not None else self.max_sample_size
+        
+        if size is None or len(records) <= size:
             return records
         
         if self.sampling_strategy == "random":
             import random
-            return random.sample(records, self.max_sample_size)
+            return random.sample(records, size)
         else:  # default to "first"
-            return records[:self.max_sample_size]
+            return records[:size]
     
     def infer_schema(self, filepath: Path) -> Optional[FileSchema]:
         """Infer schema for a single JSON file."""
         logger.info(f"Processing file: {filepath.name}")
         
+        # Default to a reasonable sample size if not specified to avoid "stuck" analysis on huge files
+        # 100,000 records is usually plenty for schema inference
+        effective_sample_size = self.max_sample_size
+        if effective_sample_size is None:
+            effective_sample_size = 100000
+            logger.info(f"No max_sample_size set. Defaulting to {effective_sample_size} for performance.")
+
         try:
-            records = self._load_json_file(filepath)
+            # Use streaming for potentially large files if max_sample_size is set but small
+            # or if we just want to be efficient.
+            # For schema inference, we often need to see many records.
+            # If sampling is 'first', streaming is great.
+            # If sampling is 'random', we need to load more or reservoir sample.
+            
+            stream = self.sampling_strategy == "first"
+            records_iter = load_json_file(filepath, stream=stream)
+            
+            if stream:
+                # Consume iterator to get list if we need random access later or just to simplify
+                # But if we only need first N, we can slice the iterator
+                if effective_sample_size and self.sampling_strategy == "first":
+                    import itertools
+                    records = list(itertools.islice(records_iter, effective_sample_size))
+                    # We don't know total count without reading all
+                    actual_record_count = -1 # Unknown
+                else:
+                    records = list(records_iter)
+                    actual_record_count = len(records)
+            else:
+                records = records_iter
+                actual_record_count = len(records)
             
             if not records:
                 logger.warning(f"No records found in {filepath.name}")
                 return None
             
-            # Sample records if needed
-            sampled_records = self._sample_records(records)
-            actual_record_count = len(records)
-            sampled_count = len(sampled_records)
+            if actual_record_count == -1:
+                 # If we streamed a subset, we might not know the total. 
+                 # For now, let's just say "at least X" or just use the sample count
+                 actual_record_count = len(records)
+
+            # Sample records if needed (if we didn't already limit during load)
+            if self.sampling_strategy == "random" and effective_sample_size and len(records) > effective_sample_size:
+                 sampled_records = self._sample_records(records, effective_sample_size)
+            elif self.sampling_strategy == "first" and effective_sample_size and len(records) > effective_sample_size:
+                 sampled_records = records[:effective_sample_size]
+            else:
+                 sampled_records = records
             
+            sampled_count = len(sampled_records)
             logger.info(f"Analyzing {sampled_count} of {actual_record_count} records from {filepath.name}")
             
             # Collect all field values
             field_values: Dict[str, List[Any]] = defaultdict(list)
             
             for record in sampled_records:
-                flattened = self._flatten_dict(record)
-                for key, value in flattened.items():
+                if not isinstance(record, dict):
+                    # Should be handled by json_loader normalization, but extra safety
+                    logger.warning(f"Skipping non-dict record in {filepath.name}: {type(record)}")
+                    continue
+                    
+                # Flatten nested structures
+                flat_record = self._flatten_dict(record)
+                for key, value in flat_record.items():
                     # Try to parse embedded JSON strings
                     if isinstance(value, str) and self._looks_like_json_string(value):
                         try:
@@ -699,10 +567,21 @@ class SchemaReader:
         
         logger.info(f"Found {len(json_files)} JSON file(s) in {self.data_dir}")
         
-        for json_file in json_files:
-            schema = self.infer_schema(json_file)
-            if schema:
-                self.schemas[json_file.name] = schema
+        # Use ProcessPoolExecutor for parallel processing
+        max_workers = min(len(json_files), 4)  # Cap at 4 workers or number of files
+        if max_workers < 1: max_workers = 1
+        
+        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+            future_to_file = {executor.submit(self.infer_schema, json_file): json_file for json_file in json_files}
+            
+            for future in concurrent.futures.as_completed(future_to_file):
+                json_file = future_to_file[future]
+                try:
+                    schema = future.result()
+                    if schema:
+                        self.schemas[json_file.name] = schema
+                except Exception as e:
+                    logger.error(f"File {json_file.name} generated an exception: {e}")
         
         return self.schemas
     

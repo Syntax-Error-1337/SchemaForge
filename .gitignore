@@ -38,6 +38,9 @@ output/*
 !output/.gitkeep
 reports/*
 !reports/.gitkeep
+result/*
+!result/.gitkeep
+!result/*/.gitkeep
 data/*
 !data/.gitkeep
 !data/sample_*.json

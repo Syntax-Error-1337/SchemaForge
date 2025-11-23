@@ -10,6 +10,8 @@ import sys
 from pathlib import Path
 from src.schema_reader import SchemaReader
 from src.converter import Converter
+from src.validator import SchemaValidator
+from src.benchmark import BenchmarkSuite
 
 # Configure logging
 logging.basicConfig(
@@ -60,8 +62,8 @@ def convert_files(args):
     """Convert JSON files to specified format."""
     logger.info(f"Starting conversion to {args.format}...")
     
-    if args.format.lower() not in ['parquet', 'csv']:
-        logger.error(f"Unsupported format: {args.format}. Supported formats: parquet, csv")
+    if args.format.lower() not in ['parquet', 'csv', 'avro', 'orc']:
+        logger.error(f"Unsupported format: {args.format}. Supported formats: parquet, csv, avro, orc")
         return 1
     
     # Determine schema report path
@@ -119,6 +121,60 @@ def convert_files(args):
         return 1
 
 
+def validate_schemas(args):
+    """Validate JSON files against inferred schemas."""
+    logger.info("Starting validation...")
+    
+    try:
+        validator = SchemaValidator(schema_report_path=args.schema_report)
+        results = validator.validate_all(args.data_dir)
+        
+        total_files = len(results)
+        valid_files = sum(1 for r in results.values() if r.get('valid', False))
+        invalid_files = total_files - valid_files
+        
+        logger.info(f"Validation complete: {valid_files}/{total_files} files valid")
+        
+        if invalid_files > 0:
+            logger.warning(f"\nInvalid files:")
+            for filename, result in results.items():
+                if not result.get('valid', False):
+                    logger.warning(f"  - {filename}: {result.get('error_count', 0)} errors")
+                    if 'errors' in result:
+                        for error in result['errors'][:5]:  # Show first 5 errors
+                            logger.warning(f"    {error}")
+        
+        return 0 if invalid_files == 0 else 1
+    
+    except Exception as e:
+        logger.error(f"Validation error: {e}")
+        return 1
+
+
+def run_benchmark(args):
+    """Run performance benchmarks."""
+    logger.info("Starting benchmark...")
+    
+    try:
+        suite = BenchmarkSuite(data_dir=args.data_dir, result_dir=args.result_dir)
+        
+        if args.type in ['schema', 'all']:
+            logger.info("Running schema inference benchmark...")
+            suite.run_schema_benchmark(max_sample_size=args.max_sample_size)
+        
+        if args.type in ['conversion', 'all']:
+            logger.info("Running conversion benchmark...")
+            formats = args.formats.split(',') if args.formats else ['parquet', 'csv', 'avro', 'orc']
+            suite.run_conversion_benchmark(formats=formats)
+        
+        logger.info(f"Benchmark complete! Results saved to {args.result_dir}")
+        return 0
+    
+    except Exception as e:
+        logger.error(f"Benchmark error: {e}")
+        return 1
+
+
 def main():
     """Main entry point for the CLI."""
     parser = argparse.ArgumentParser(
@@ -161,8 +217,8 @@ def main():
         '--format',
         type=str,
         required=True,
-        choices=['parquet', 'csv'],
-        help='Output format: parquet or csv'
+        choices=['parquet', 'csv', 'avro', 'orc'],
+        help='Output format: parquet, csv, avro, or orc'
     )
     convert_parser.add_argument(
         '--data-dir',
@@ -191,6 +247,55 @@ def main():
              'The corresponding JSON file will be used automatically.'
     )
     
+    # Validate command
+    validate_parser = subparsers.add_parser('validate', help='Validate JSON files against schemas')
+    validate_parser.add_argument(
+        '--data-dir',
+        type=str,
+        default='data',
+        help='Directory containing JSON files (default: data)'
+    )
+    validate_parser.add_argument(
+        '--schema-report',
+        type=str,
+        default='reports/schema_report.json',
+        help='Path to schema report JSON file (default: reports/schema_report.json)'
+    )
+    
+    # Benchmark command
+    benchmark_parser = subparsers.add_parser('benchmark', help='Run performance benchmarks')
+    benchmark_parser.add_argument(
+        '--type',
+        type=str,
+        choices=['schema', 'conversion', 'all'],
+        default='all',
+        help='Type of benchmark to run (default: all)'
+    )
+    benchmark_parser.add_argument(
+        '--data-dir',
+        type=str,
+        default='data',
+        help='Directory containing JSON files (default: data)'
+    )
+    benchmark_parser.add_argument(
+        '--result-dir',
+        type=str,
+        default='result',
+        help='Directory for benchmark results (default: result)'
+    )
+    benchmark_parser.add_argument(
+        '--max-sample-size',
+        type=int,
+        default=None,
+        help='Max sample size for schema benchmark (default: None)'
+    )
+    benchmark_parser.add_argument(
+        '--formats',
+        type=str,
+        default=None,
+        help='Comma-separated list of formats for conversion benchmark (default: parquet,csv,avro,orc)'
+    )
+    
     args = parser.parse_args()
     
     if not args.command:
@@ -201,6 +306,10 @@ def main():
         return scan_schemas(args)
     elif args.command == 'convert':
         return convert_files(args)
+    elif args.command == 'validate':
+        return validate_schemas(args)
+    elif args.command == 'benchmark':
+        return run_benchmark(args)
     else:
         parser.print_help()
         return 1

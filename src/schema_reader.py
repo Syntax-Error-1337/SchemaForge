@@ -463,7 +463,7 @@ class SchemaReader:
         # 100,000 records is usually plenty for schema inference
         effective_sample_size = self.max_sample_size
         if effective_sample_size is None:
-            effective_sample_size = 100000
+            effective_sample_size = 10000
             logger.info(f"No max_sample_size set. Defaulting to {effective_sample_size} for performance.")
 
         try:

@@ -1,0 +1,233 @@
+{
+  "summary": {
+    "total_files": 5,
+    "formats_tested": [
+      "parquet",
+      "csv",
+      "avro",
+      "orc"
+    ]
+  },
+  "per_format": {
+    "parquet": {
+      "per_file": {
+        "global_gross_production_of_crops_livestock.json": {
+          "input_size": 15159,
+          "input_size_formatted": "14.80 KB",
+          "output_size": 8090,
+          "output_size_formatted": "7.90 KB",
+          "compression_ratio_percent": 46.63,
+          "size_reduction": "6.90 KB"
+        },
+        "iris.json": {
+          "input_size": 15802,
+          "input_size_formatted": "15.43 KB",
+          "output_size": 4877,
+          "output_size_formatted": "4.76 KB",
+          "compression_ratio_percent": 69.14,
+          "size_reduction": "10.67 KB"
+        },
+        "rows.json": {
+          "input_size": 112679401,
+          "input_size_formatted": "107.46 MB",
+          "output_size": 15916790,
+          "output_size_formatted": "15.18 MB",
+          "compression_ratio_percent": 85.87,
+          "size_reduction": "92.28 MB"
+        },
+        "stackoverflow_combined_info.json": {
+          "input_size": 8225,
+          "input_size_formatted": "8.03 KB",
+          "output_size": 3846,
+          "output_size_formatted": "3.76 KB",
+          "compression_ratio_percent": 53.24,
+          "size_reduction": "4.28 KB"
+        },
+        "top_coffee_producing_countries.json": {
+          "input_size": 3491,
+          "input_size_formatted": "3.41 KB",
+          "output_size": 4096,
+          "output_size_formatted": "4.00 KB",
+          "compression_ratio_percent": -17.33,
+          "size_reduction": "-605.00 B"
+        }
+      },
+      "total": {
+        "execution_time_seconds": 14.169,
+        "peak_memory_mb": 99.95,
+        "memory_increase_mb": 10.39,
+        "cpu_percent": 99.4,
+        "total_input_size": 112722078,
+        "total_input_size_formatted": "107.50 MB",
+        "total_output_size": 15937699,
+        "total_output_size_formatted": "15.20 MB",
+        "overall_compression_ratio_percent": 85.86
+      }
+    },
+    "csv": {
+      "per_file": {
+        "global_gross_production_of_crops_livestock.json": {
+          "input_size": 15159,
+          "input_size_formatted": "14.80 KB",
+          "output_size": 3347,
+          "output_size_formatted": "3.27 KB",
+          "compression_ratio_percent": 77.92,
+          "size_reduction": "11.54 KB"
+        },
+        "iris.json": {
+          "input_size": 15802,
+          "input_size_formatted": "15.43 KB",
+          "output_size": 4005,
+          "output_size_formatted": "3.91 KB",
+          "compression_ratio_percent": 74.66,
+          "size_reduction": "11.52 KB"
+        },
+        "rows.json": {
+          "input_size": 112679401,
+          "input_size_formatted": "107.46 MB",
+          "output_size": 89898068,
+          "output_size_formatted": "85.73 MB",
+          "compression_ratio_percent": 20.22,
+          "size_reduction": "21.73 MB"
+        },
+        "stackoverflow_combined_info.json": {
+          "input_size": 8225,
+          "input_size_formatted": "8.03 KB",
+          "output_size": 108,
+          "output_size_formatted": "108.00 B",
+          "compression_ratio_percent": 98.69,
+          "size_reduction": "7.93 KB"
+        },
+        "top_coffee_producing_countries.json": {
+          "input_size": 3491,
+          "input_size_formatted": "3.41 KB",
+          "output_size": 1295,
+          "output_size_formatted": "1.26 KB",
+          "compression_ratio_percent": 62.9,
+          "size_reduction": "2.14 KB"
+        }
+      },
+      "total": {
+        "execution_time_seconds": 15.177,
+        "peak_memory_mb": 103.04,
+        "memory_increase_mb": 3.09,
+        "cpu_percent": 99.1,
+        "total_input_size": 112722078,
+        "total_input_size_formatted": "107.50 MB",
+        "total_output_size": 89906823,
+        "total_output_size_formatted": "85.74 MB",
+        "overall_compression_ratio_percent": 20.24
+      }
+    },
+    "avro": {
+      "per_file": {
+        "global_gross_production_of_crops_livestock.json": {
+          "input_size": 15159,
+          "input_size_formatted": "14.80 KB",
+          "output_size": 3882,
+          "output_size_formatted": "3.79 KB",
+          "compression_ratio_percent": 74.39,
+          "size_reduction": "11.01 KB"
+        },
+        "iris.json": {
+          "input_size": 15802,
+          "input_size_formatted": "15.43 KB",
+          "output_size": 7388,
+          "output_size_formatted": "7.21 KB",
+          "compression_ratio_percent": 53.25,
+          "size_reduction": "8.22 KB"
+        },
+        "rows.json": {
+          "input_size": 112679401,
+          "input_size_formatted": "107.46 MB",
+          "output_size": 93224962,
+          "output_size_formatted": "88.91 MB",
+          "compression_ratio_percent": 17.27,
+          "size_reduction": "18.55 MB"
+        },
+        "stackoverflow_combined_info.json": {
+          "input_size": 8225,
+          "input_size_formatted": "8.03 KB",
+          "output_size": 499,
+          "output_size_formatted": "499.00 B",
+          "compression_ratio_percent": 93.93,
+          "size_reduction": "7.54 KB"
+        },
+        "top_coffee_producing_countries.json": {
+          "input_size": 3491,
+          "input_size_formatted": "3.41 KB",
+          "output_size": 1621,
+          "output_size_formatted": "1.58 KB",
+          "compression_ratio_percent": 53.57,
+          "size_reduction": "1.83 KB"
+        }
+      },
+      "total": {
+        "execution_time_seconds": 24.802,
+        "peak_memory_mb": 106.21,
+        "memory_increase_mb": 3.17,
+        "cpu_percent": 99.5,
+        "total_input_size": 112722078,
+        "total_input_size_formatted": "107.50 MB",
+        "total_output_size": 93238352,
+        "total_output_size_formatted": "88.92 MB",
+        "overall_compression_ratio_percent": 17.28
+      }
+    },
+    "orc": {
+      "per_file": {
+        "global_gross_production_of_crops_livestock.json": {
+          "input_size": 15159,
+          "input_size_formatted": "14.80 KB",
+          "output_size": 3892,
+          "output_size_formatted": "3.80 KB",
+          "compression_ratio_percent": 74.33,
+          "size_reduction": "11.00 KB"
+        },
+        "iris.json": {
+          "input_size": 15802,
+          "input_size_formatted": "15.43 KB",
+          "output_size": 6973,
+          "output_size_formatted": "6.81 KB",
+          "compression_ratio_percent": 55.87,
+          "size_reduction": "8.62 KB"
+        },
+        "rows.json": {
+          "input_size": 112679401,
+          "input_size_formatted": "107.46 MB",
+          "output_size": 79097806,
+          "output_size_formatted": "75.43 MB",
+          "compression_ratio_percent": 29.8,
+          "size_reduction": "32.03 MB"
+        },
+        "stackoverflow_combined_info.json": {
+          "input_size": 8225,
+          "input_size_formatted": "8.03 KB",
+          "output_size": 958,
+          "output_size_formatted": "958.00 B",
+          "compression_ratio_percent": 88.35,
+          "size_reduction": "7.10 KB"
+        },
+        "top_coffee_producing_countries.json": {
+          "input_size": 3491,
+          "input_size_formatted": "3.41 KB",
+          "output_size": 1907,
+          "output_size_formatted": "1.86 KB",
+          "compression_ratio_percent": 45.37,
+          "size_reduction": "1.55 KB"
+        }
+      },
+      "total": {
+        "execution_time_seconds": 14.402,
+        "peak_memory_mb": 109.57,
+        "memory_increase_mb": 3.36,
+        "cpu_percent": 99.8,
+        "total_input_size": 112722078,
+        "total_input_size_formatted": "107.50 MB",
+        "total_output_size": 79111536,
+        "total_output_size_formatted": "75.45 MB",
+        "overall_compression_ratio_percent": 29.82
+      }
+    }
+  }
+}

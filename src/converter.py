@@ -11,6 +11,8 @@ import logging
 import pandas as pd
 import pyarrow as pa
 import pyarrow.parquet as pq
+import pyarrow.orc as orc
+import fastavro
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import concurrent.futures
@@ -312,9 +314,132 @@ class Converter:
             
             logger.info(f"Successfully converted {filepath.name} to {output_path}")
             return True
-        
         except Exception as e:
             logger.error(f"Failed to convert {filepath.name} to CSV: {e}")
+            return False
+    
+    def convert_to_avro(self, filepath: Path, schema: Optional[FileSchema] = None) -> bool:
+        """Convert a JSON file to Avro format."""
+        logger.info(f"Converting {filepath.name} to Avro...")
+        
+        try:
+            # Load schema if not provided
+            if schema is None:
+                schema = self.schema_reader.infer_schema(filepath)
+                if schema is None:
+                    logger.error(f"Failed to infer schema for {filepath.name}")
+                    return False
+            
+            # Load JSON data
+            records = load_json_file(filepath, stream=False)
+            
+            if not records:
+                logger.warning(f"No records to convert in {filepath.name}")
+                return False
+            
+            # Prepare DataFrame
+            df = self._prepare_dataframe(records, schema)
+            
+            if df.empty:
+                logger.warning(f"Empty DataFrame created for {filepath.name}")
+                return False
+            
+            # Generate output filename
+            output_filename = filepath.stem + ".avro"
+            output_path = self.output_dir / output_filename
+            
+            # Generate Avro schema from DataFrame
+            avro_schema = {
+                "doc": f"Schema for {filepath.name}",
+                "name": "Record",
+                "namespace": "schemaforge",
+                "type": "record",
+                "fields": []
+            }
+            
+            for col_name, dtype in df.dtypes.items():
+                field_type = ["null"]
+                if pd.api.types.is_integer_dtype(dtype):
+                    field_type.append("long")
+                elif pd.api.types.is_float_dtype(dtype):
+                    field_type.append("double")
+                elif pd.api.types.is_bool_dtype(dtype):
+                    field_type.append("boolean")
+                else:
+                    field_type.append("string")
+                
+                avro_schema["fields"].append({"name": col_name, "type": field_type})
+            
+            # Convert DataFrame to list of dicts
+            records_list = df.to_dict('records')
+            
+            # Write Avro file
+            with open(output_path, 'wb') as out:
+                fastavro.writer(out, avro_schema, records_list)
+            
+            logger.info(f"Successfully converted {filepath.name} to {output_path}")
+            return True
+        
+        except Exception as e:
+            logger.error(f"Failed to convert {filepath.name} to Avro: {e}")
+            return False
+    
+    def convert_to_orc(self, filepath: Path, schema: Optional[FileSchema] = None) -> bool:
+        """Convert a JSON file to ORC format."""
+        logger.info(f"Converting {filepath.name} to ORC...")
+        
+        try:
+            # Load schema if not provided
+            if schema is None:
+                schema = self.schema_reader.infer_schema(filepath)
+                if schema is None:
+                    logger.error(f"Failed to infer schema for {filepath.name}")
+                    return False
+            
+            # Load JSON data
+            records = load_json_file(filepath, stream=False)
+            
+            if not records:
+                logger.warning(f"No records to convert in {filepath.name}")
+                return False
+            
+            # Prepare DataFrame
+            df = self._prepare_dataframe(records, schema)
+            
+            if df.empty:
+                logger.warning(f"Empty DataFrame created for {filepath.name}")
+                return False
+            
+            # Generate output filename
+            output_filename = filepath.stem + ".orc"
+            output_path = self.output_dir / output_filename
+            
+            # Convert to PyArrow table and handle null columns
+            table = pa.Table.from_pandas(df)
+            
+            # Filter out columns with null type (PyArrow can't write them to ORC)
+            schema_fields = []
+            valid_columns = []
+            for i, field in enumerate(table.schema):
+                if field.type != pa.null():
+                    schema_fields.append(field)
+                    valid_columns.append(table.column(i))
+                else:
+                    logger.warning(f"Skipping null-type column '{field.name}' in {filepath.name} for ORC")
+            
+            if not valid_columns:
+                logger.error(f"No valid columns for ORC conversion in {filepath.name}")
+                return False
+            
+            # Create new table with only valid columns
+            filtered_table = pa.Table.from_arrays(valid_columns, schema=pa.schema(schema_fields))
+            orc.write_table(filtered_table, output_path)
+            
+            logger.info(f"Successfully converted {filepath.name} to {output_path}")
+            return True
+        
+        except Exception as e:
+            logger.error(f"Failed to convert {filepath.name} to ORC: {e}")
             return False
     
     def convert_all(self, format_type: str) -> Dict[str, bool]:
@@ -331,60 +456,103 @@ class Converter:
             logger.warning(f"No JSON files found in {self.data_dir}")
             return {}
         
-        # Load schemas from schema report JSON file
-        if not self.schema_report_path:
+        # Load schemas - either from schema_reader (if already loaded) or from schema report file
+        if self.schema_reader.schemas:
+            # Use pre-loaded schemas from schema_reader
+            logger.info(f"Using pre-loaded schemas from SchemaReader")
+            schemas = self.schema_reader.schemas
+        elif self.schema_report_path:
+            # Load schemas from schema report JSON file
+            logger.info(f"Loading schemas from schema report: {self.schema_report_path}")
+            try:
+                schemas = SchemaReader.load_schemas_from_json(self.schema_report_path)
+            except FileNotFoundError as e:
+                raise FileNotFoundError(
+                    f"Schema report not found: {self.schema_report_path}. "
+                    "Please run 'scan-schemas' command first to generate a schema report."
+                ) from e
+        else:
             raise ValueError(
-                "Schema report path is required. Please run 'scan-schemas' command first "
-                "to generate a schema report, then provide the path using --schema-report option."
+                "Schema report path or pre-loaded schemas are required. "
+                "Please run 'scan-schemas' command first to generate a schema report, "
+                "then provide the path using --schema-report option."
             )
         
-        logger.info(f"Loading schemas from schema report: {self.schema_report_path}")
-        try:
-            schemas = SchemaReader.load_schemas_from_json(self.schema_report_path)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(
-                f"Schema report not found: {self.schema_report_path}. "
-                "Please run 'scan-schemas' command first to generate a schema report."
-            ) from e
-        
         if not schemas:
-            raise ValueError("No schemas found in the schema report. Please regenerate the schema report.")
+            raise ValueError("No schemas found. Please regenerate the schema report.")
         
         results = {}
         
-
+        # Determine if we should use parallel processing
+        # If schemas are pre-loaded (from schema_reader), use sequential to avoid serialization issues
+        use_parallel = not bool(self.schema_reader.schemas)
         
-        # Use ProcessPoolExecutor for parallel processing
-        max_workers = min(len(json_files), 4)
-        if max_workers < 1: max_workers = 1
-        
-        with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
-            future_to_file = {}
+        if use_parallel:
+            # Use ProcessPoolExecutor for parallel processing (when loading from file)
+            max_workers = min(len(json_files), 4)
+            if max_workers < 1: max_workers = 1
+            
+            with concurrent.futures.ProcessPoolExecutor(max_workers=max_workers) as executor:
+                future_to_file = {}
+                for json_file in json_files:
+                    schema = schemas.get(json_file.name)
+                    if schema is None:
+                        logger.warning(
+                            f"No schema found for {json_file.name} in the schema report. "
+                            "Skipping this file. Please regenerate the schema report."
+                        )
+                        results[json_file.name] = False
+                        continue
+                    
+                    if format_type.lower() == "parquet":
+                        future = executor.submit(self.convert_to_parquet, json_file, schema)
+                    elif format_type.lower() == "csv":
+                        future = executor.submit(self.convert_to_csv, json_file, schema)
+                    elif format_type.lower() == "avro":
+                        future = executor.submit(self.convert_to_avro, json_file, schema)
+                    elif format_type.lower() == "orc":
+                        future = executor.submit(self.convert_to_orc, json_file, schema)
+                    else:
+                        logger.error(f"Unsupported format: {format_type}")
+                        results[json_file.name] = False
+                        continue
+                    
+                    future_to_file[future] = json_file
+                
+                for future in concurrent.futures.as_completed(future_to_file):
+                    json_file = future_to_file[future]
+                    try:
+                        success = future.result()
+                        results[json_file.name] = success
+                    except Exception as e:
+                        logger.error(f"File {json_file.name} generated an exception: {e}")
+                        results[json_file.name] = False
+        else:
+            # Sequential processing (when using pre-loaded schemas to avoid serialization issues)
+            logger.info("Using sequential processing for pre-loaded schemas")
             for json_file in json_files:
                 schema = schemas.get(json_file.name)
                 if schema is None:
                     logger.warning(
-                        f"No schema found for {json_file.name} in the schema report. "
-                        "Skipping this file. Please regenerate the schema report."
+                        f"No schema found for {json_file.name}. "
+                        "Skipping this file."
                     )
                     results[json_file.name] = False
                     continue
                 
-                if format_type.lower() == "parquet":
-                    future = executor.submit(self.convert_to_parquet, json_file, schema)
-                elif format_type.lower() == "csv":
-                    future = executor.submit(self.convert_to_csv, json_file, schema)
-                else:
-                    logger.error(f"Unsupported format: {format_type}")
-                    results[json_file.name] = False
-                    continue
-                
-                future_to_file[future] = json_file
-            
-            for future in concurrent.futures.as_completed(future_to_file):
-                json_file = future_to_file[future]
                 try:
-                    success = future.result()
+                    if format_type.lower() == "parquet":
+                        success = self.convert_to_parquet(json_file, schema)
+                    elif format_type.lower() == "csv":
+                        success = self.convert_to_csv(json_file, schema)
+                    elif format_type.lower() == "avro":
+                        success = self.convert_to_avro(json_file, schema)
+                    elif format_type.lower() == "orc":
+                        success = self.convert_to_orc(json_file, schema)
+                    else:
+                        logger.error(f"Unsupported format: {format_type}")
+                        success = False
+                    
                     results[json_file.name] = success
                 except Exception as e:
                     logger.error(f"File {json_file.name} generated an exception: {e}")

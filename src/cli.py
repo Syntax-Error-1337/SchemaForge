@@ -62,8 +62,8 @@ def convert_files(args):
     """Convert JSON files to specified format."""
     logger.info(f"Starting conversion to {args.format}...")
     
-    if args.format.lower() not in ['parquet', 'csv', 'avro', 'orc']:
-        logger.error(f"Unsupported format: {args.format}. Supported formats: parquet, csv, avro, orc")
+    if args.format.lower() not in ['parquet', 'csv', 'avro', 'orc', 'feather']:
+        logger.error(f"Unsupported format: {args.format}. Supported formats: parquet, csv, avro, orc, feather")
         return 1
     
     # Determine schema report path
@@ -164,7 +164,7 @@ def run_benchmark(args):
         
         if args.type in ['conversion', 'all']:
             logger.info("Running conversion benchmark...")
-            formats = args.formats.split(',') if args.formats else ['parquet', 'csv', 'avro', 'orc']
+            formats = args.formats.split(',') if args.formats else ['parquet', 'csv', 'avro', 'orc', 'feather']
             suite.run_conversion_benchmark(formats=formats)
         
         logger.info(f"Benchmark complete! Results saved to {args.result_dir}")
@@ -217,8 +217,8 @@ def main():
         '--format',
         type=str,
         required=True,
-        choices=['parquet', 'csv', 'avro', 'orc'],
-        help='Output format: parquet, csv, avro, or orc'
+        choices=['parquet', 'csv', 'avro', 'orc', 'feather'],
+        help='Output format: parquet, csv, avro, orc, or feather'
     )
     convert_parser.add_argument(
         '--data-dir',
@@ -293,7 +293,7 @@ def main():
         '--formats',
         type=str,
         default=None,
-        help='Comma-separated list of formats for conversion benchmark (default: parquet,csv,avro,orc)'
+        help='Comma-separated list of formats for conversion benchmark (default: parquet,csv,avro,orc,feather)'
     )
     
     args = parser.parse_args()

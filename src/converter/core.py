@@ -15,6 +15,7 @@ from src.converter.parquet import convert_to_parquet
 from src.converter.csv import convert_to_csv
 from src.converter.avro import convert_to_avro
 from src.converter.orc import convert_to_orc
+from src.converter.feather import convert_to_feather
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +76,10 @@ class Converter:
     def convert_to_orc(self, filepath: Path, schema: Optional[FileSchema] = None) -> bool:
         """Convert a JSON file to ORC format."""
         return convert_to_orc(filepath, self.output_dir, self.schema_reader, schema)
+    
+    def convert_to_feather(self, filepath: Path, schema: Optional[FileSchema] = None) -> bool:
+        """Convert a JSON file to Feather format."""
+        return convert_to_feather(filepath, self.output_dir, self.schema_reader, schema)
     
     def convert_all(self, format_type: str) -> Dict[str, bool]:
         """Convert all JSON files in the data directory to the specified format.
@@ -148,6 +153,8 @@ class Converter:
                         future = executor.submit(convert_to_avro, json_file, self.output_dir, self.schema_reader, schema)
                     elif format_type.lower() == "orc":
                         future = executor.submit(convert_to_orc, json_file, self.output_dir, self.schema_reader, schema)
+                    elif format_type.lower() == "feather":
+                        future = executor.submit(convert_to_feather, json_file, self.output_dir, self.schema_reader, schema)
                     else:
                         logger.error(f"Unsupported format: {format_type}")
                         results[json_file.name] = False
@@ -185,6 +192,8 @@ class Converter:
                         success = self.convert_to_avro(json_file, schema)
                     elif format_type.lower() == "orc":
                         success = self.convert_to_orc(json_file, schema)
+                    elif format_type.lower() == "feather":
+                        success = self.convert_to_feather(json_file, schema)
                     else:
                         logger.error(f"Unsupported format: {format_type}")
                         success = False

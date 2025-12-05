@@ -47,17 +47,69 @@ def load_json_file(filepath: Path, stream: bool = False) -> Union[List[Dict[str,
 def _load_json_stream(filepath: Path) -> Generator[Dict[str, Any], None, None]:
     """Stream records from a JSON file using ijson."""
     try:
-        # Try to detect if it's an array or object
+        # First, try to detect NDJSON format by checking if there are multiple lines
+        # with JSON objects (common for large datasets)
+        is_ndjson = False
+        with open(filepath, 'rb') as f:
+            # Read first few lines to detect format
+            first_lines = []
+            for i, line in enumerate(f):
+                if i >= 3:  # Check first 3 lines
+                    break
+                line = line.strip()
+                if line:
+                    first_lines.append(line)
+            
+            # If we have multiple non-empty lines, check if each is valid JSON
+            if len(first_lines) >= 2:
+                try:
+                    # Try parsing each line as JSON
+                    for line in first_lines:
+                        json.loads(line.decode('utf-8'))
+                    # If all lines are valid JSON, it's likely NDJSON
+                    is_ndjson = True
+                except (json.JSONDecodeError, UnicodeDecodeError):
+                    pass
+        
+        # If detected as NDJSON, process line by line
+        if is_ndjson:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        item = json.loads(line)
+                        if isinstance(item, dict):
+                            yield item
+                        elif isinstance(item, list):
+                            yield {f"column_{i}": val for i, val in enumerate(item)}
+                        else:
+                            yield {"value": item}
+                    except json.JSONDecodeError as e:
+                        logger.debug(f"Skipping invalid JSON on line {line_num}: {e}")
+                        continue
+            return
+        
+        # Not NDJSON, try standard JSON formats
         with open(filepath, 'rb') as f:
             # Check first non-whitespace character
+            first_char = None
             while True:
                 char = f.read(1)
-                if not char or not char.isspace():
+                if not char:
                     break
+                if not char.isspace():
+                    first_char = char
+                    break
+            
+            if not first_char:
+                logger.warning(f"File {filepath} appears to be empty")
+                return
             
             f.seek(0)
             
-            if char == b'[':
+            if first_char == b'[':
                 # Array of objects
                 # ijson.items(f, 'item') yields each item in the top-level array
                 for item in ijson.items(f, 'item'):
@@ -67,67 +119,108 @@ def _load_json_stream(filepath: Path) -> Generator[Dict[str, Any], None, None]:
                         yield {f"column_{i}": val for i, val in enumerate(item)}
                     else:
                         yield {"value": item}
-            elif char == b'{':
+            elif first_char == b'{':
                 # Single object or wrapper
-                # For simplicity in streaming, we might just yield the whole object if it's not a known wrapper
-                # But let's try to find common wrapper keys
-                # This is tricky with ijson without parsing the whole thing.
-                # A common pattern is { "data": [...] }
-                # We can try to stream specific paths
-                
                 # Strategy: Try to find a large array under common keys
                 common_keys = ['data', 'results', 'items', 'records', 'rows', 'entries', 'features']
                 found_wrapper = False
                 
                 for key in common_keys:
                     try:
-                        # This will raise an error if the key doesn't exist or isn't an array immediately?
-                        # ijson.items is lazy.
-                        # We need a way to peek or try multiple.
-                        # Re-opening file for each attempt is safe but slow.
                         f.seek(0)
                         # 'key.item' means: value of 'key' -> iterate over items in that array
+                        item_count = 0
                         for item in ijson.items(f, f'{key}.item'):
+                            item_count += 1
                             if isinstance(item, dict):
                                 yield item
                             elif isinstance(item, list):
                                 yield {f"column_{i}": val for i, val in enumerate(item)}
                             else:
                                 yield {"value": item}
-                        found_wrapper = True
-                        break
+                        if item_count > 0:
+                            found_wrapper = True
+                            break
+                    except (ijson.JSONError, StopIteration):
+                        continue
                     except Exception:
                         continue
                 
                 if not found_wrapper:
-                    # Treat as single record
+                    # Could be a single object or NDJSON that starts with {
+                    # Try NDJSON as fallback before attempting full load
                     f.seek(0)
-                    data = json.load(f) # Fallback to standard load for single object
-                    if isinstance(data, dict):
-                        yield data
+                    try:
+                        # Check if second line exists and is valid JSON
+                        lines_checked = 0
+                        for line in f:
+                            lines_checked += 1
+                            if lines_checked > 2:
+                                # Multiple lines exist, treat as NDJSON
+                                f.seek(0)
+                                for line in f:
+                                    line = line.strip()
+                                    if not line:
+                                        continue
+                                    try:
+                                        item = json.loads(line.decode('utf-8'))
+                                        if isinstance(item, dict):
+                                            yield item
+                                        elif isinstance(item, list):
+                                            yield {f"column_{i}": val for i, val in enumerate(item)}
+                                        else:
+                                            yield {"value": item}
+                                    except (json.JSONDecodeError, UnicodeDecodeError):
+                                        pass
+                                return
+                            if lines_checked == 1:
+                                # Only one line, try as single JSON object
+                                f.seek(0)
+                                data = json.load(f)
+                                if isinstance(data, dict):
+                                    yield data
+                                return
+                    except Exception:
+                        # If NDJSON detection fails, try single object
+                        f.seek(0)
+                        try:
+                            data = json.load(f)
+                            if isinstance(data, dict):
+                                yield data
+                        except json.JSONDecodeError:
+                            raise ValueError(f"Could not parse {filepath} as JSON array, object, or NDJSON")
             else:
-                # Maybe NDJSON?
+                # Maybe NDJSON starting with something else?
                 f.seek(0)
-                # ijson doesn't natively support NDJSON well in the same way as 'items'
-                # We can just read line by line
                 for line in f:
                     line = line.strip()
-                    if not line: continue
+                    if not line:
+                        continue
                     try:
-                        item = json.loads(line)
+                        item = json.loads(line.decode('utf-8'))
                         if isinstance(item, dict):
                             yield item
                         elif isinstance(item, list):
                             yield {f"column_{i}": val for i, val in enumerate(item)}
                         else:
                             yield {"value": item}
-                    except json.JSONDecodeError:
+                    except (json.JSONDecodeError, UnicodeDecodeError):
                         pass
 
     except Exception as e:
-        # Log as warning instead of error since we have a fallback
-        logger.warning(f"Streaming failed for {filepath}: {e}. Falling back to memory load.")
-        yield from _load_json_memory(filepath)
+        # For very large files, don't fall back to memory load
+        file_size_mb = filepath.stat().st_size / (1024 * 1024)
+        if file_size_mb > 100:
+            logger.error(f"Streaming failed for large file {filepath} ({file_size_mb:.1f}MB): {e}")
+            logger.error("Cannot fall back to memory load for files > 100MB. Please ensure the file is in a supported format (JSON array, NDJSON, or wrapped JSON).")
+            raise
+        else:
+            # Log as warning and try fallback for smaller files
+            logger.warning(f"Streaming failed for {filepath}: {e}. Falling back to memory load.")
+            # Convert list to generator for consistency
+            records = _load_json_memory(filepath)
+            for record in records:
+                yield record
 
 def _load_json_memory(filepath: Path) -> List[Dict[str, Any]]:
     """Load JSON file completely into memory."""
@@ -187,7 +280,9 @@ def _load_json_memory(filepath: Path) -> List[Dict[str, Any]]:
             return []
 
     except Exception as e:
+        import traceback
         logger.error(f"Error loading file {filepath}: {e}")
+        logger.debug(f"Traceback: {traceback.format_exc()}")
         return []
 
 def _normalize_data(data: Any) -> List[Dict[str, Any]]:

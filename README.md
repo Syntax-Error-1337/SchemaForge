@@ -80,7 +80,24 @@ SchemaForge automatically discovers JSON schemas and converts them to analytics-
 - **Batch Processing** - Convert multiple files in one command
 - **Sampling Support** - Handle massive files efficiently
 
+### ⚡ High-Performance Architecture
+- **Memory-SAFE Processing** - Automatic 80% memory limit protection (no OOM crashes)
+- **Dynamic Scaling** - Auto-scales worker processes based on available RAM
+- **Smart Chunking** - Automatically chunks large files to fit in memory
+- **Parallel Processing** - Multi-core conversion for maximum throughput
+
 ---
+
+## 💾 Memory Management
+
+SchemaForge is built for big data. It automatically manages system resources to ensure stability and speed.
+
+### Intelligent Resource Scaling
+1.  **Memory Protection**: Continuously monitors RAM usage, capping at **80%** (default) to keep your system responsive.
+2.  **Adaptive Workers**: Calculates the optimal number of parallel workers (1-8) based on your specific hardware config.
+3.  **Smart Chunking**: Large files (>50MB) are automatically processed in memory-safe chunks.
+
+> **💡 Zero Configuration Needed:** These optimizations happen automatically. Just run `convert` and let SchemaForge handle the resources.
 
 ## 📦 Installation
 

@@ -8,6 +8,7 @@ including standard JSON, NDJSON, and streaming for large files.
 import json
 import logging
 import ast
+import warnings
 from pathlib import Path
 from typing import List, Dict, Any, Generator, Union, Optional
 
@@ -156,9 +157,11 @@ def _load_json_memory(filepath: Path) -> List[Dict[str, Any]]:
             except Exception:
                 pass
             
-            # 3. Try Python Literal
+            # 3. Try Python Literal (with warning suppression for escape sequences)
             try:
-                data = ast.literal_eval(content)
+                with warnings.catch_warnings():
+                    warnings.filterwarnings("ignore", category=SyntaxWarning)
+                    data = ast.literal_eval(content)
                 return _normalize_data(data)
             except Exception:
                 pass
@@ -174,7 +177,9 @@ def _load_json_memory(filepath: Path) -> List[Dict[str, Any]]:
                         records.append(record)
                 except json.JSONDecodeError:
                     try:
-                        record = ast.literal_eval(line)
+                        with warnings.catch_warnings():
+                            warnings.filterwarnings("ignore", category=SyntaxWarning)
+                            record = ast.literal_eval(line)
                         if isinstance(record, dict):
                             records.append(record)
                     except Exception:

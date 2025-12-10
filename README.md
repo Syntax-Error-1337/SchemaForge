@@ -16,7 +16,7 @@
 
 ## 🎯 What is SchemaForge?
 
-SchemaForge automatically discovers JSON schemas and converts them to analytics-ready formats. **Stop wasting hours on manual data wrangling**—let SchemaForge handle type detection, schema inference, and format conversion in seconds.
+SchemaForge automatically discovers JSON schemas and converts them to analytics-ready formats. **Stop wasting hours on manual data wrangling**—let SchemaForge handle type detection, schema inference, and format conversion in seconds. 
 
 ### The Problem vs. The Solution
 
